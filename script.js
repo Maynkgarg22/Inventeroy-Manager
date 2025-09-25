@@ -1,134 +1,290 @@
-body {
-  font-family: Arial, sans-serif;
-  background: #f7f9fc;
-  margin: 0;
-  padding: 20px;
-  color: #333;
-}
 
-.centered-container {
-  max-width: 400px;
-  margin: 100px auto;
-  background: white;
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  text-align: center;
-}
+// Fixed script.js — login + simple inventory (localStorage-backed)
+const ADMIN_PASSWORD = "admin123";
 
-.controls {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 15px;
-  justify-content: center;
-}
+(function () {
+  // Helper: safe getter
+  const $ = id => document.getElementById(id);
 
-.controls input[type="text"],
-.controls select {
-  padding: 8px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  min-width: 150px;
-}
+  // DOM elements (some may be missing; the code is defensive)
+  const loginScreen = $('loginScreen');
+  const dashboard = $('dashboard');
+  const loginPassword = $('loginPassword');
+  const loginBtn = $('loginBtn');
 
-#inventoryTable {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 20px;
-}
+  const inventoryTableBody = document.querySelector('#inventoryTable tbody');
+  const inventoryForm = $('inventoryForm');
+  const editForm = $('editForm');
+  const editCancelBtn = $('editCancelBtn');
 
-#inventoryTable th, #inventoryTable td {
-  border: 1px solid #ddd;
-  padding: 6px 10px;
-  text-align: center;
-  font-size: 13px;
-}
+  // Utility: load/save inventory
+  const STORAGE_KEY = 'inventoryData_v1';
+  let inventory = [];
 
-#inventoryTable th {
-  background-color: #007bff;
-  color: white;
-}
+  function loadInventory() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      inventory = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load inventory', e);
+      inventory = [];
+    }
+  }
+  function saveInventory() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
+  }
 
-#inventoryForm, #editForm {
-  background: white;
-  padding: 20px;
-  border-radius: 10px;
-  max-width: 900px;
-  margin: 0 auto 40px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
+  // Render table
+  function renderInventory() {
+    if (!inventoryTableBody) return;
+    inventoryTableBody.innerHTML = '';
+    inventory.forEach((item, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(item.model || '')}</td>
+        <td>${escapeHtml(item.serialNumber || '')}</td>
+        <td>${escapeHtml(item.type || '')}</td>
+        <td>${escapeHtml(item.name || '')}</td>
+        <td>${escapeHtml(item.status || '')}</td>
+        <td>${escapeHtml(item.location || '')}</td>
+        <td>
+          <button data-idx="${idx}" class="editBtn">Edit</button>
+          <button data-idx="${idx}" class="delBtn">Delete</button>
+        </td>
+      `;
+      inventoryTableBody.appendChild(tr);
+    });
 
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-  margin-bottom: 15px;
-}
+    // attach listeners
+    Array.from(document.getElementsByClassName('editBtn')).forEach(btn => {
+      btn.onclick = onEditClick;
+    });
+    Array.from(document.getElementsByClassName('delBtn')).forEach(btn => {
+      btn.onclick = onDeleteClick;
+    });
+  }
 
-.form-grid input {
-  padding: 7px;
-  border-radius: 5px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-}
+  // Basic XSS escape for displaying values
+  function escapeHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, function (m) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+    });
+  }
 
-.form-buttons {
-  text-align: center;
-}
+  // Show/hide screens
+  function showDashboard() {
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (dashboard) dashboard.style.display = 'block';
+    renderInventory();
+  }
+  function showLogin() {
+    if (dashboard) dashboard.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'flex';
+  }
 
-button {
-  background-color: #007bff;
-  border: none;
-  padding: 10px 25px;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  margin: 0 8px;
-}
+  // Password checker used for edit/delete prompts
+  function askPasswordPrompt() {
+    const p = prompt('Enter admin password:');
+    return p === ADMIN_PASSWORD;
+  }
 
-button:hover {
-  background-color: #0056b3;
-}
+  // Edit / Delete handlers
+  function onEditClick(e) {
+    const idx = Number(e.currentTarget.dataset.idx);
+    if (!askPasswordPrompt()) {
+      alert('Incorrect password.');
+      return;
+    }
+    // populate edit form fields if present
+    const item = inventory[idx];
+    if (!item || !editForm) return;
+    setFormValues(editForm, item);
+    $('editIndex').value = idx;
+    editForm.scrollIntoView({behavior:'smooth'});
+  }
 
-.modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0,0,0,0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
+  function onDeleteClick(e) {
+    const idx = Number(e.currentTarget.dataset.idx);
+    if (!askPasswordPrompt()) {
+      alert('Incorrect password.');
+      return;
+    }
+    if (!confirm('Delete this item?')) return;
+    inventory.splice(idx,1);
+    saveInventory();
+    renderInventory();
+  }
 
-.modal-content {
-  background: white;
-  padding: 25px;
-  border-radius: 10px;
-  max-width: 900px;
-  width: 95%;
-  position: relative;
-}
+  // Fill a form's inputs from an object (matches by id)
+  function setFormValues(formEl, obj) {
+    if (!formEl) return;
+    Array.from(formEl.elements).forEach(el => {
+      if (!el.id) return;
+      if (obj[el.id] !== undefined) {
+        el.value = obj[el.id];
+      } else {
+        // also support mapping from expected property names without prefixes
+        const prop = el.id.replace(/^edit/i, '').replace(/^inventory/i, '').replace(/^form/i, '');
+        if (obj[prop] !== undefined) el.value = obj[prop];
+      }
+    });
+  }
 
-.close {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  font-size: 25px;
-  font-weight: bold;
-  cursor: pointer;
-  color: #666;
-}
+  // Read form fields into object (only inputs with ids)
+  function readFormValues(formEl) {
+    const out = {};
+    if (!formEl) return out;
+    Array.from(formEl.elements).forEach(el => {
+      if (!el.id) return;
+      if (el.type === 'checkbox') out[el.id] = el.checked;
+      else out[el.id] = el.value.trim();
+    });
+    return out;
+  }
 
-.close:hover {
-  color: #000;
-}
-/* style.css: Example styling for the new buttons */
-#exportBtn, #importBtn, #itemNameBtn {
-    margin-right: 8px;
-    padding: 6px 14px;
-}
+  // Inventory add handler
+  if (inventoryForm) {
+    inventoryForm.onsubmit = function (ev) {
+      ev.preventDefault();
+      const values = readFormValues(inventoryForm);
+      // normalize keys used elsewhere
+      const item = {
+        model: values.model || '',
+        serialNumber: values.serialNumber || '',
+        type: values.type || '',
+        name: values.name || '',
+        status: values.status || '',
+        location: values.location || '',
+        // save whole form as well for future fields
+        ...values
+      };
+      inventory.push(item);
+      saveInventory();
+      inventoryForm.reset();
+      renderInventory();
+      alert('Item added.');
+    };
+  }
+
+  // Edit form submit
+  if (editForm) {
+    editForm.onsubmit = function (ev) {
+      ev.preventDefault();
+      const idx = Number($('editIndex').value);
+      if (!Number.isFinite(idx) || !inventory[idx]) {
+        alert('Invalid edit index.');
+        return;
+      }
+      const values = readFormValues(editForm);
+      inventory[idx] = {
+        model: values.editModel || values.model || inventory[idx].model || '',
+        serialNumber: values.editSerialNumber || values.serialNumber || inventory[idx].serialNumber || '',
+        type: values.editType || values.type || inventory[idx].type || '',
+        name: values.editName || values.name || inventory[idx].name || '',
+        status: values.editStatus || values.status || inventory[idx].status || '',
+        location: values.editLocation || values.location || inventory[idx].location || '',
+        ...values
+      };
+      saveInventory();
+      renderInventory();
+      editForm.reset();
+      alert('Changes saved.');
+    };
+
+    if (editCancelBtn) {
+      editCancelBtn.onclick = function () {
+        editForm.reset();
+      };
+    }
+  }
+
+  // Login handling
+  if (loginBtn && loginPassword) {
+    loginBtn.onclick = function () {
+      const val = loginPassword.value || '';
+      if (val === ADMIN_PASSWORD) {
+        localStorage.setItem('loggedIn', 'true');
+        showDashboard();
+        loginPassword.value = '';
+      } else {
+        alert('Incorrect password.');
+      }
+    };
+  }
+
+  // On load: initialize
+  function init() {
+    loadInventory();
+    // if logged in already, show dashboard
+    if (localStorage.getItem('loggedIn') === 'true') {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+  }
+
+  // Wait for DOM ready if necessary
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+// Export inventory as JSON file
+document.getElementById('exportBtn').onclick = function() {
+    const dataStr = JSON.stringify(inventory, null, 2);
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "inventory_export.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+// Import inventory from JSON file
+document.getElementById('importBtn').onclick = function() {
+    document.getElementById('importFile').click();
+};
+
+document.getElementById('importFile').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        try {
+            const importedData = JSON.parse(event.target.result);
+            if (Array.isArray(importedData)) {
+                inventory = importedData;
+                saveInventory();
+                renderInventory();
+                alert("Inventory imported successfully.");
+            } else {
+                alert("Invalid file format.");
+            }
+        } catch (err) {
+            alert("Error importing file.");
+        }
+    };
+    reader.readAsText(file);
+});
+
+// Modify Item Name button (example: open modal to change name)
+document.getElementById('itemNameBtn').onclick = function() {
+    // Example action: prompt for item index and new name
+    const idx = prompt("Enter item number (index):");
+    if (inventory[idx]) {
+        const newName = prompt("Enter new name:");
+        if (newName && newName.trim()) {
+            inventory[idx].name = newName.trim();
+            saveInventory();
+            renderInventory();
+            alert("Item name updated.");
+        }
+    }
+};
