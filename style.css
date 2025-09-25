@@ -127,4 +127,8 @@ button:hover {
 .close:hover {
   color: #000;
 }
-
+/* style.css: Example styling for the new buttons */
+#exportBtn, #importBtn, #itemNameBtn {
+    margin-right: 8px;
+    padding: 6px 14px;
+}
