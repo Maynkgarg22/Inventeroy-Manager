@@ -1,37 +1,4 @@
-// Add references to new elements
-const logoutBtn = document.getElementById('logoutBtn');
-const inventoryChartCtx = document.getElementById('inventoryChart').getContext('2d');
-const importFileInput = document.getElementById('importFile');
-const importBtn = document.getElementById('importBtn');
-const itemNameBtn = document.getElementById('itemNameBtn');
-
-let inventoryChartInstance = null; // Will hold Chart.js instance
-
-// Existing login, loadFromStorage, saveToStorage, renderTable functions remain.
-
-// Show dashboard and render chart
-function showDashboard() {
-  loginScreen.style.display = 'none';
-  dashboard.style.display = 'block';
-
-  loadFromStorage();
-  renderTable();
-  populateFilterOptions();
-  renderInventoryChart();
-}
-
-// Logout logic
-logoutBtn.onclick = () => {
-  localStorage.removeItem('loggedIn');
-  dashboard.style.display = 'none';
-  loginScreen.style.display = 'block';
-  loginPassword.value = '';
-};
-
-// Import Excel and JSON
-importBtn.onclick = () => {
-  importFileInput.click();
-};
+// Existing declarations...
 
 importFileInput.onchange = (event) => {
   const file = event.target.files[0];
@@ -67,12 +34,17 @@ importFileInput.onchange = (event) => {
         const worksheet = workbook.Sheets[firstSheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-        // Map Excel data columns to inventory array format
-        inventory = jsonData.map(item => ({
+        if (!Array.isArray(jsonData) || jsonData.length === 0) {
+          alert('No valid data found in the Excel file.');
+          return;
+        }
+
+        // Map Excel columns to inventory object model safely
+        inventory = jsonData.map((item) => ({
           model: item.Model || '',
           serialNumber: item['Serial Number'] || '',
           type: item.Type || '',
-          name: item['Name of instance'] || '',
+          name: item['Name'] || item['Name of instance'] || '',
           status: item.Status || '',
           location: item.Location || '',
           rackNu: item['Rack Nu'] || '',
@@ -95,56 +67,12 @@ importFileInput.onchange = (event) => {
         renderInventoryChart();
         alert('Inventory Excel imported successfully.');
       } catch (error) {
-        alert('Error reading Excel file.');
+        alert('Error parsing Excel file.');
       }
     };
     reader.readAsArrayBuffer(file);
   } else {
-    alert('Unsupported file type. Please upload JSON or Excel file.');
+    alert('Unsupported file type. Please upload a JSON or Excel file.');
   }
-  // Clear input to allow re-import if needed
   importFileInput.value = '';
-};
-
-// Render inventory chart with Chart.js
-function renderInventoryChart() {
-  if (inventoryChartInstance) {
-    inventoryChartInstance.destroy();
-  }
-
-  // Example: Show counts by status
-  const counts = inventory.reduce((acc, item) => {
-    acc[item.status] = (acc[item.status] || 0) + 1;
-    return acc;
-  }, {});
-
-  const labels = Object.keys(counts);
-  const data = Object.values(counts);
-
-  inventoryChartInstance = new Chart(inventoryChartCtx, {
-    type: 'bar',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Inventory Count by Status',
-        data: data,
-        backgroundColor: 'rgba(0, 123, 255, 0.7)'
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
-  });
-}
-
-// Item button click opens edit modal (example to open the first item or a new blank form)
-itemNameBtn.onclick = () => {
-  if (inventory.length > 0) {
-    openEditModal(0); // Open first item for edit for demonstration
-  } else {
-    alert('No items available to edit.');
-  }
 };
