@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inventory Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="loginScreen" class="centered-container">
+    <h2>Inventory Login</h2>
+    <input type="password" id="loginPassword" placeholder="Enter Password" />
+    <button id="loginBtn">Login</button>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <div class="controls">
+      <input type="text" id="searchInput" placeholder="Search inventory..." />
+      <select id="filterType">
+        <option value="">All Types</option>
+      </select>
+      <select id="filterStatus">
+        <option value="">All Statuses</option>
+      </select>
+      <select id="filterLocation">
+        <option value="">All Locations</option>
+      </select>
+    </div>
+
+    <table id="inventoryTable">
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Model</th>
+          <th>Serial Number</th>
+          <th>Type</th>
+          <th>Name of instance</th>
+          <th>Status</th>
+          <th>Location</th>
+          <th>Rack Nu</th>
+          <th>Type (CPU)</th>
+          <th>CPU</th>
+          <th>Core</th>
+          <th>Memory GB</th>
+          <th>HDD1 GB</th>
+          <th>HDD2 GB</th>
+          <th>HDD3 GB</th>
+          <th>HDD4 GB</th>
+          <th>External Storage</th>
+          <th>OS</th>
+          <th>Application</th>
+          <th>IP</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <form id="inventoryForm">
+      <h3 id="formTitle">Add New Item</h3>
+      <input type="hidden" id="editIndex" />
+      <div class="form-grid">
+        <input placeholder="Model" id="model" required />
+        <input placeholder="Serial Number" id="serialNumber" required />
+        <input placeholder="Type" id="type" required />
+        <input placeholder="Name of instance" id="name" required />
+        <input placeholder="Status" id="status" required />
+        <input placeholder="Location" id="location" required />
+        <input placeholder="Rack Nu" id="rackNu" />
+        <input placeholder="Type (CPU)" id="cpuType" />
+        <input placeholder="CPU" id="cpu" />
+        <input placeholder="Core" id="core" />
+        <input placeholder="Memory GB" id="memory" />
+        <input placeholder="HDD1 GB" id="hdd1" />
+        <input placeholder="HDD2 GB" id="hdd2" />
+        <input placeholder="HDD3 GB" id="hdd3" />
+        <input placeholder="HDD4 GB" id="hdd4" />
+        <input placeholder="External Storage" id="externalStorage" />
+        <input placeholder="OS" id="os" />
+        <input placeholder="Application" id="application" />
+        <input placeholder="IP" id="ip" />
+      </div>
+      <div class="form-buttons">
+        <button type="submit" id="saveBtn">Save</button>
+        <button type="button" id="cancelBtn">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Edit modal -->
+  <div id="editModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h3>Edit Inventory Item</h3>
+      <form id="editForm">
+        <div class="form-grid">
+          <input placeholder="Model" id="editModel" required />
+          <input placeholder="Serial Number" id="editSerialNumber" required />
+          <input placeholder="Type" id="editType" required />
+          <input placeholder="Name of instance" id="editName" required />
+          <input placeholder="Status" id="editStatus" required />
+          <input placeholder="Location" id="editLocation" required />
+          <input placeholder="Rack Nu" id="editRackNu" />
+          <input placeholder="Type (CPU)" id="editCpuType" />
+          <input placeholder="CPU" id="editCpu" />
+          <input placeholder="Core" id="editCore" />
+          <input placeholder="Memory GB" id="editMemory" />
+          <input placeholder="HDD1 GB" id="editHdd1" />
+          <input placeholder="HDD2 GB" id="editHdd2" />
+          <input placeholder="HDD3 GB" id="editHdd3" />
+          <input placeholder="HDD4 GB" id="editHdd4" />
+          <input placeholder="External Storage" id="editExternalStorage" />
+          <input placeholder="OS" id="editOs" />
+          <input placeholder="Application" id="editApplication" />
+          <input placeholder="IP" id="editIp" />
+        </div>
+        <div class="form-buttons">
+          <button type="submit">Save Changes</button>
+          <button type="button" id="editCancelBtn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
