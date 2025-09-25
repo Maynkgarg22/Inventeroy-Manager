@@ -1,205 +1,234 @@
-// Admin password
+
+// Fixed script.js — login + simple inventory (localStorage-backed)
 const ADMIN_PASSWORD = "admin123";
 
-let inventory = [];
+(function () {
+  // Helper: safe getter
+  const $ = id => document.getElementById(id);
 
-// DOM Elements
-const loginScreen = document.getElementById("loginScreen");
-const dashboard = document.getElementById("dashboard");
-const loginPassword = document.getElementById("loginPassword");
-const loginBtn = document.getElementById("loginBtn");
+  // DOM elements (some may be missing; the code is defensive)
+  const loginScreen = $('loginScreen');
+  const dashboard = $('dashboard');
+  const loginPassword = $('loginPassword');
+  const loginBtn = $('loginBtn');
 
-const searchInput = document.getElementById("searchInput");
-const filterType = document.getElementById("filterType");
-const filterStatus = document.getElementById("filterStatus");
-const filterLocation = document.getElementById("filterLocation");
+  const inventoryTableBody = document.querySelector('#inventoryTable tbody');
+  const inventoryForm = $('inventoryForm');
+  const editForm = $('editForm');
+  const editCancelBtn = $('editCancelBtn');
 
-const inventoryTableBody = document.querySelector("#inventoryTable tbody");
-const inventoryForm = document.getElementById("inventoryForm");
-const formTitle = document.getElementById("formTitle");
-const editIndexInput = document.getElementById("editIndex");
+  // Utility: load/save inventory
+  const STORAGE_KEY = 'inventoryData_v1';
+  let inventory = [];
 
-const editModal = document.getElementById("editModal");
-const editForm = document.getElementById("editForm");
-
-// Login Handling
-window.onload = () => {
-  if (localStorage.getItem("loggedIn") === "true") {
-    showDashboard();
+  function loadInventory() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      inventory = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      console.error('Failed to load inventory', e);
+      inventory = [];
+    }
   }
-};
-
-loginBtn.onclick = () => {
-  if (loginPassword.value === ADMIN_PASSWORD) {
-    localStorage.setItem("loggedIn", "true");
-    showDashboard();
-  } else {
-    alert("Incorrect password.");
+  function saveInventory() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
   }
-};
 
-function showDashboard() {
-  loginScreen.style.display = "none";
-  dashboard.style.display = "block";
-  loadFromStorage();
-  renderTable();
-  populateFilterOptions();
-}
+  // Render table
+  function renderInventory() {
+    if (!inventoryTableBody) return;
+    inventoryTableBody.innerHTML = '';
+    inventory.forEach((item, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(item.model || '')}</td>
+        <td>${escapeHtml(item.serialNumber || '')}</td>
+        <td>${escapeHtml(item.type || '')}</td>
+        <td>${escapeHtml(item.name || '')}</td>
+        <td>${escapeHtml(item.status || '')}</td>
+        <td>${escapeHtml(item.location || '')}</td>
+        <td>
+          <button data-idx="${idx}" class="editBtn">Edit</button>
+          <button data-idx="${idx}" class="delBtn">Delete</button>
+        </td>
+      `;
+      inventoryTableBody.appendChild(tr);
+    });
 
-// Load from localStorage
-function loadFromStorage() {
-  const saved = localStorage.getItem("inventoryData");
-  if (saved) {
-    inventory = JSON.parse(saved);
-  } else {
-    inventory = [];
+    // attach listeners
+    Array.from(document.getElementsByClassName('editBtn')).forEach(btn => {
+      btn.onclick = onEditClick;
+    });
+    Array.from(document.getElementsByClassName('delBtn')).forEach(btn => {
+      btn.onclick = onDeleteClick;
+    });
   }
-}
 
-// Save to localStorage
-function saveToStorage() {
-  localStorage.setItem("inventoryData", JSON.stringify(inventory));
-}
+  // Basic XSS escape for displaying values
+  function escapeHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, function (m) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+    });
+  }
 
-// Render the inventory table
-function renderTable() {
-  inventoryTableBody.innerHTML = "";
-  inventory.forEach((item, index) => {
-    const row = document.createElement("tr");
+  // Show/hide screens
+  function showDashboard() {
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (dashboard) dashboard.style.display = 'block';
+    renderInventory();
+  }
+  function showLogin() {
+    if (dashboard) dashboard.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'flex';
+  }
 
-    row.innerHTML = `
-      <td>${index + 1}</td>
-      <td>${item.model}</td>
-      <td>${item.serialNumber}</td>
-      <td>${item.type}</td>
-      <td>${item.name}</td>
-      <td>${item.status}</td>
-      <td>${item.location}</td>
-      <td>${item.rackNu || ""}</td>
-      <td>${item.cpuType || ""}</td>
-      <td>${item.cpu || ""}</td>
-      <td>${item.core || ""}</td>
-      <td>${item.memory || ""}</td>
-      <td>${item.hdd1 || ""}</td>
-      <td>${item.hdd2 || ""}</td>
-      <td>${item.hdd3 || ""}</td>
-      <td>${item.hdd4 || ""}</td>
-      <td>${item.externalStorage || ""}</td>
-      <td>${item.os || ""}</td>
-      <td>${item.application || ""}</td>
-      <td>${item.ip || ""}</td>
-      <td>
-        <button class="editBtn" data-index="${index}">Edit</button>
-        <button class="deleteBtn" data-index="${index}">Delete</button>
-      </td>
-    `;
-    inventoryTableBody.appendChild(row);
-  });
+  // Password checker used for edit/delete prompts
+  function askPasswordPrompt() {
+    const p = prompt('Enter admin password:');
+    return p === ADMIN_PASSWORD;
+  }
 
-  addTableEventListeners();
-  filterTable();
-  populateFilterOptions();
-}
+  // Edit / Delete handlers
+  function onEditClick(e) {
+    const idx = Number(e.currentTarget.dataset.idx);
+    if (!askPasswordPrompt()) {
+      alert('Incorrect password.');
+      return;
+    }
+    // populate edit form fields if present
+    const item = inventory[idx];
+    if (!item || !editForm) return;
+    setFormValues(editForm, item);
+    $('editIndex').value = idx;
+    editForm.scrollIntoView({behavior:'smooth'});
+  }
 
-// Add event listeners to Edit/Delete buttons
-function addTableEventListeners() {
-  document.querySelectorAll(".editBtn").forEach(btn => {
-    btn.onclick = () => {
-      askPassword(() => openEditModal(parseInt(btn.dataset.index)));
+  function onDeleteClick(e) {
+    const idx = Number(e.currentTarget.dataset.idx);
+    if (!askPasswordPrompt()) {
+      alert('Incorrect password.');
+      return;
+    }
+    if (!confirm('Delete this item?')) return;
+    inventory.splice(idx,1);
+    saveInventory();
+    renderInventory();
+  }
+
+  // Fill a form's inputs from an object (matches by id)
+  function setFormValues(formEl, obj) {
+    if (!formEl) return;
+    Array.from(formEl.elements).forEach(el => {
+      if (!el.id) return;
+      if (obj[el.id] !== undefined) {
+        el.value = obj[el.id];
+      } else {
+        // also support mapping from expected property names without prefixes
+        const prop = el.id.replace(/^edit/i, '').replace(/^inventory/i, '').replace(/^form/i, '');
+        if (obj[prop] !== undefined) el.value = obj[prop];
+      }
+    });
+  }
+
+  // Read form fields into object (only inputs with ids)
+  function readFormValues(formEl) {
+    const out = {};
+    if (!formEl) return out;
+    Array.from(formEl.elements).forEach(el => {
+      if (!el.id) return;
+      if (el.type === 'checkbox') out[el.id] = el.checked;
+      else out[el.id] = el.value.trim();
+    });
+    return out;
+  }
+
+  // Inventory add handler
+  if (inventoryForm) {
+    inventoryForm.onsubmit = function (ev) {
+      ev.preventDefault();
+      const values = readFormValues(inventoryForm);
+      // normalize keys used elsewhere
+      const item = {
+        model: values.model || '',
+        serialNumber: values.serialNumber || '',
+        type: values.type || '',
+        name: values.name || '',
+        status: values.status || '',
+        location: values.location || '',
+        // save whole form as well for future fields
+        ...values
+      };
+      inventory.push(item);
+      saveInventory();
+      inventoryForm.reset();
+      renderInventory();
+      alert('Item added.');
     };
-  });
-  document.querySelectorAll(".deleteBtn").forEach(btn => {
-    btn.onclick = () => {
-      askPassword(() => deleteItem(parseInt(btn.dataset.index)));
-    };
-  });
-}
-
-// Password prompt before Edit/Delete
-function askPassword(callback) {
-  const pass = prompt("Enter password:");
-  if (pass === ADMIN_PASSWORD) {
-    callback();
-  } else {
-    alert("Incorrect password.");
   }
-}
 
-// Open edit modal and populate fields
-function openEditModal(index) {
-  const item = inventory[index];
-  editIndexInput.value = index;
-  editForm.editModel.value = item.model;
-  editForm.editSerialNumber.value = item.serialNumber;
-  editForm.editType.value = item.type;
-  editForm.editName.value = item.name;
-  editForm.editStatus.value = item.status;
-  editForm.editLocation.value = item.location;
-  editForm.editRackNu.value = item.rackNu || "";
-  editForm.editCpuType.value = item.cpuType || "";
-  editForm.editCpu.value = item.cpu || "";
-  editForm.editCore.value = item.core || "";
-  editForm.editMemory.value = item.memory || "";
-  editForm.editHdd1.value = item.hdd1 || "";
-  editForm.editHdd2.value = item.hdd2 || "";
-  editForm.editHdd3.value = item.hdd3 || "";
-  editForm.editHdd4.value = item.hdd4 || "";
-  editForm.editExternalStorage.value = item.externalStorage || "";
-  editForm.editOs.value = item.os || "";
-  editForm.editApplication.value = item.application || "";
-  editForm.editIp.value = item.ip || "";
+  // Edit form submit
+  if (editForm) {
+    editForm.onsubmit = function (ev) {
+      ev.preventDefault();
+      const idx = Number($('editIndex').value);
+      if (!Number.isFinite(idx) || !inventory[idx]) {
+        alert('Invalid edit index.');
+        return;
+      }
+      const values = readFormValues(editForm);
+      inventory[idx] = {
+        model: values.editModel || values.model || inventory[idx].model || '',
+        serialNumber: values.editSerialNumber || values.serialNumber || inventory[idx].serialNumber || '',
+        type: values.editType || values.type || inventory[idx].type || '',
+        name: values.editName || values.name || inventory[idx].name || '',
+        status: values.editStatus || values.status || inventory[idx].status || '',
+        location: values.editLocation || values.location || inventory[idx].location || '',
+        ...values
+      };
+      saveInventory();
+      renderInventory();
+      editForm.reset();
+      alert('Changes saved.');
+    };
 
-  editModal.style.display = "flex";
-}
+    if (editCancelBtn) {
+      editCancelBtn.onclick = function () {
+        editForm.reset();
+      };
+    }
+  }
 
-// Close modal
-document.querySelector(".close").onclick = () => {
-  editModal.style.display = "none";
-};
+  // Login handling
+  if (loginBtn && loginPassword) {
+    loginBtn.onclick = function () {
+      const val = loginPassword.value || '';
+      if (val === ADMIN_PASSWORD) {
+        localStorage.setItem('loggedIn', 'true');
+        showDashboard();
+        loginPassword.value = '';
+      } else {
+        alert('Incorrect password.');
+      }
+    };
+  }
 
-document.getElementById("editCancelBtn").onclick = () => {
-  editModal.style.display = "none";
-};
+  // On load: initialize
+  function init() {
+    loadInventory();
+    // if logged in already, show dashboard
+    if (localStorage.getItem('loggedIn') === 'true') {
+      showDashboard();
+    } else {
+      showLogin();
+    }
+  }
 
-// Submit edit form
-editForm.onsubmit = e => {
-  e.preventDefault();
-  const idx = parseInt(editIndexInput.value);
-  inventory[idx] = {
-    model: editForm.editModel.value.trim(),
-    serialNumber: editForm.editSerialNumber.value.trim(),
-    type: editForm.editType.value.trim(),
-    name: editForm.editName.value.trim(),
-    status: editForm.editStatus.value.trim(),
-    location: editForm.editLocation.value.trim(),
-    rackNu: editForm.editRackNu.value.trim(),
-    cpuType: editForm.editCpuType.value.trim(),
-    cpu: editForm.editCpu.value.trim(),
-    core: editForm.editCore.value.trim(),
-    memory: editForm.editMemory.value.trim(),
-    hdd1: editForm.editHdd1.value.trim(),
-    hdd2: editForm.editHdd2.value.trim(),
-    hdd3: editForm.editHdd3.value.trim(),
-    hdd4: editForm.editHdd4.value.trim(),
-    externalStorage: editForm.editExternalStorage.value.trim(),
-    os: editForm.editOs.value.trim(),
-    application: editForm.editApplication.value.trim(),
-    ip: editForm.editIp.value.trim(),
-  };
-  saveToStorage();
-  renderTable();
-  editModal.style.display = "none";
-};
+  // Wait for DOM ready if necessary
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 
-// Submit new item form
-inventoryForm.onsubmit = e => {
-  e.preventDefault();
-  const newItem = {
-    model: inventoryForm.model.value.trim(),
-    serialNumber: inventoryForm.serialNumber.value.trim(),
-    type: inventoryForm.type.value.trim(),
-    name: inventoryForm.name.value.trim(),
-    status: inventoryForm.status.value.trim(),
-    location: inventoryForm.location.value.trim(),
-    rackNu: inventoryForm.rack
-.js
+})();
